@@ -7,11 +7,11 @@ import math
 class clockMem:
 	def __init__(self,N):
 		self.N = N
-		self.mem = [(long(0),long(0)]*self.N
+		self.mem = [(long(0),long(0))]*self.N
 		self.pos = 0
 		self.sumx = long(0)
 		self.sumy = long(0)
-		self.sumxy = long(0)
+		self.sumyx = long(0)
 		self.sumxx = long(0)
 		
 	def update(self,x,y):
@@ -24,6 +24,17 @@ class clockMem:
 		self.pos+=1
 		if self.pos>=self.N:
 			self.pos -= self.N
+		print "cm update",x,y,"--------------",x*self.N,y*self.N,self.sumx,self.sumy
+
+	def X2Y(self,x):
+		a = self.sumyx*self.N-self.sumx*self.sumy
+		b = self.sumxx*self.N-self.sumx*self.sumx
+		return ((long(x)*self.N-self.sumx)*a/b+self.sumy)/long(self.N)
+				
+	def Y2X(self,y):
+		a = self.sumyx*self.N-self.sumx*self.sumy
+		b = self.sumxx*self.N-self.sumx*self.sumx
+		return ((y*self.N-self.sumy)*b/a+self.sumx)/self.N
 		
 class clockCap:
 	def __init__(self,N):
@@ -41,33 +52,30 @@ class clockCap:
 		cpu0 = long(self.lib.getNow())
 		sys = long(time.time()*1e9)
 		cpu1 = long(self.lib.getNow())
-		return sys,(cpu0+cpu1)/2		
+		return (cpu0+cpu1)/2,sys		
 	
 	def log(self):
 		while len(self.mem)>=self.N:
 			del self.mem[0]
 		(x,y) = self.timePair()
 		self.mem.append((x,y))
-		self.cm.update(y,x)
+		self.cm.update(x,y)
 		
 	def run(self):
 		while len(self.mem)<self.N:
 			time.sleep(0.0001)
 			self.log()
-		cnt = 0
+		cnt = 1
 		while self.Stop==0:
-			time.sleep(0.1)
-			if cnt<0:
-				cnt = self.calcA()
-			else:
-				cnt -= 1	
+			time.sleep(0.1*(cnt+1))
 			self.log()
+			cnt = self.calcA()
 		print "Thread Exit"
 	
 	def calc(self):
 		if len(self.mem)==0:
 			return
-		(y0,x0)=self.mem[-1]
+		(x0,y0)=self.mem[-1]
 		cs = np.array([[float(y-y0),float(x-x0)] for (y,x) in self.mem])
 		n = len(cs[:,0])
 		ys = sum(cs[:,0])/n
@@ -89,9 +97,9 @@ class clockCap:
 	def calcA(self):
 		if len(self.mem)==0:
 			return
-		(y0,x0)=self.mem[-1]
-		(y1,x1)=self.mem[-2]
-		cs = np.array([[float(y-y0),float(x-x0)] for (y,x) in self.mem])
+		(x0,y0)=self.mem[-1]
+		(x1,y1)=self.mem[-2]
+		cs = np.array([[float(y-y0),float(x-x0)] for (x,y) in self.mem])
 		n = len(cs[:,0])
 		ys = sum(cs[:,0])/n
 		xs = sum(cs[:,1])/n
@@ -116,7 +124,7 @@ class clockCap:
 			cnt = 1024
 		print f0,f0/f1,cnt
 		return int(cnt)
-			
+				
 	def Now(self):
 		cpu = self.lib.getNow()
 		r = cpu-self.cpu0
@@ -136,7 +144,9 @@ def main():
 		cpu0 = clk.Now()		
 		now = time.time()*1e9
 		cpu1 = clk.Now()
-		print now-(cpu0+cpu1)/2
+		clk0 = clk.lib.getNow()
+		print now-(cpu0+cpu1)/2,
+		print now-clk.cm.X2Y(clk0)
 		#clk.calcA()
 		#print clk.A,clk.xs,clk.ys,clk.xxs,clk.yxs,len(clk.mem)
 	clk.Stop = 1
